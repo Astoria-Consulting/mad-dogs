@@ -1,6 +1,7 @@
 import functools
 import os
 import time
+import payroll_config
 
 from dateutil import parser
 import datetime
@@ -8,44 +9,14 @@ import concurrent.futures
 
 from square.client import Client
 
-year = "2021"
-month = "08"
-start_day = "01"
-end_day = "15"
-
-# roles = ["Server", "Kitchen", "Bartender"]
-# Tipouts go to these roles
-tipouts_to_role = {"Beverage": [""],
-                   "Liquor": ["Bartender"],
-                   "Beer": ["Bartender"],
-                   "Wine": ["Bartender"],
-                   "Dogs": ["Kitchen"],
-                   "Bites": ["Kitchen"],
-                   "Dessert": ["Kitchen"],
-                   "Merchandise": [""],
-                   "Salad": ["Kitchen"],
-                   "Kids Meal/Sides/Salad": ["Kitchen"],
-                   "Cocktails": ["Bartender"],
-                   "Brunch": ["Kitchen"],
-                   "Mora": [""]}
-
-# Tipouts are taken from these roles
-tipouts_from_role = {"Beverage": [""],
-                     "Liquor": ["Server"],
-                     "Beer": ["Server"],
-                     "Wine": ["Server"],
-                     "Dogs": ["Server", "Bartender"],
-                     "Bites": ["Server", "Bartender"],
-                     "Dessert": ["Server", "Bartender"],
-                     "Merchandise": [""],
-                     "Salad": ["Server", "Bartender"],
-                     "Kids Meal/Sides/Salad": ["Server", "Bartender"],
-                     "Cocktails": ["Server"],
-                     "Brunch": ["Server", "Bartender"],
-                     "Mora": [""]}
-
-BARTENDER_PERCENTAGE = .05
-KITCHEN_PERCENTAGE = .03
+year = payroll_config.year
+month = payroll_config.month
+start_day = payroll_config.start_day
+end_day = payroll_config.end_day
+tipouts_to_role = payroll_config.tipouts_to_role
+tipouts_from_role = payroll_config.tipouts_from_role
+BARTENDER_PERCENTAGE = payroll_config.BARTENDER_PERCENTAGE
+KITCHEN_PERCENTAGE = payroll_config.KITCHEN_PERCENTAGE
 
 access_token = os.getenv("SQUARE_ACCESS_TOKEN")
 
@@ -344,8 +315,8 @@ def main():
         executor.map(process_payment_threaded, all_payments)
 
     log("Processing for pay period complete. Results:")
+    print("Member Name|Net Tips|Kitchen Hours|Bartender Hours|Server Hours|Host Hours")
     for worker in workers_net_tips:
-        print("Member Name|Net Tips|Kitchen Hours|Bartender Hours|Server Hours|Host Hours")
         net_tips = "{:.2f}".format(workers_net_tips[worker]/100)
         print(f"{member_id_to_name[worker]}|{net_tips}|"
               f"{hours_billed[worker]['Kitchen']}|"
