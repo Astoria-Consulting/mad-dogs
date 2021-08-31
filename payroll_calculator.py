@@ -12,7 +12,11 @@ from square.client import Client
 year = payroll_config.year
 month = payroll_config.month
 start_day = payroll_config.start_day
+if len(start_day) == 1:
+    start_day = f"0{start_day}"
 end_day = payroll_config.end_day
+if len(end_day) == 1:
+    start_day = f"0{end_day}"
 tipouts_to_role = payroll_config.tipouts_to_role
 tipouts_from_role = payroll_config.tipouts_from_role
 BARTENDER_PERCENTAGE = payroll_config.BARTENDER_PERCENTAGE
@@ -282,6 +286,14 @@ def get_hours_billed(shifts):
     return hours_billed
 
 
+def format_timedelta(timedelta):
+    days = timedelta.days
+    hours, rem = divmod(timedelta.seconds, 3600)
+    minutes, seconds = divmod(rem, 60)
+    hours += days * 24
+    return f"{hours}:{minutes}:{seconds}"
+
+
 def main():
     start_date = f"{year}-{month}-{start_day}"
     end_date = f"{year}-{month}-{end_day}"
@@ -319,10 +331,10 @@ def main():
     for worker in workers_net_tips:
         net_tips = "{:.2f}".format(workers_net_tips[worker]/100)
         print(f"{member_id_to_name[worker]}|{net_tips}|"
-              f"{hours_billed[worker]['Kitchen']}|"
-              f"{hours_billed[worker]['Bartender']}|"
-              f"{hours_billed[worker]['Server']}|"
-              f"{hours_billed[worker]['Host']}")
+              f"{format_timedelta(hours_billed[worker]['Kitchen'])}|"
+              f"{format_timedelta(hours_billed[worker]['Bartender'])}|"
+              f"{format_timedelta(hours_billed[worker]['Server'])}|"
+              f"{format_timedelta(hours_billed[worker]['Host'])}")
 
 
 if __name__ == '__main__':
