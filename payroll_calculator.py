@@ -301,9 +301,23 @@ def format_timedelta(timedelta):
     hours, rem = divmod(timedelta.seconds, 3600)
     truncated_percent = "{:.2f}".format(rem / 3600)
     formatted_percent = str(truncated_percent)[1:]
-
     hours += days * 24
     return f"{hours}{formatted_percent}"
+
+
+def write_results_to_file(workers_net_tips, member_id_to_name, hours_billed):
+    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H.%M.%S')
+    file_path = f"./logs/{timestamp}_payroll_calculator_{year}_{month}_{start_day}-{end_day}.csv"
+    with open(file_path, "a") as file:
+        file.writelines("sep=|")
+        file.writelines("Member Name|Net Tips|Kitchen Hours|Bartender Hours|Server Hours|Host Hours")
+        for worker in workers_net_tips:
+            net_tips = "{:.2f}".format(workers_net_tips[worker] / 100)
+            file.writelines(f"{member_id_to_name[worker]}|{net_tips}|"
+                            f"{format_timedelta(hours_billed[worker]['Kitchen'])}|"
+                            f"{format_timedelta(hours_billed[worker]['Bartender'])}|"
+                            f"{format_timedelta(hours_billed[worker]['Server'])}|"
+                            f"{format_timedelta(hours_billed[worker]['Host'])}")
 
 
 def main():
@@ -339,19 +353,8 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=None) as executor:
         executor.map(process_payment_threaded, all_payments)
 
-    log("Processing for pay period complete. Results:")
-    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H.%M.%S')
-    file_path = f"./logs/{timestamp}_payroll_calculator_{year}_{month}_{start_day}-{end_day}"
-    with open(file_path, "a") as file:
-        file.write("sep=|")
-        file.write("Member Name|Net Tips|Kitchen Hours|Bartender Hours|Server Hours|Host Hours")
-        for worker in workers_net_tips:
-            net_tips = "{:.2f}".format(workers_net_tips[worker] / 100)
-            file.write(f"{member_id_to_name[worker]}|{net_tips}|"
-                       f"{format_timedelta(hours_billed[worker]['Kitchen'])}|"
-                       f"{format_timedelta(hours_billed[worker]['Bartender'])}|"
-                       f"{format_timedelta(hours_billed[worker]['Server'])}|"
-                       f"{format_timedelta(hours_billed[worker]['Host'])}")
+    log("Processing for pay period complete.")
+    write_results_to_file(workers_net_tips, member_id_to_name, hours_billed)
 
 
 if __name__ == '__main__':
