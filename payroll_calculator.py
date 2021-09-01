@@ -309,15 +309,15 @@ def write_results_to_file(workers_net_tips, member_id_to_name, hours_billed):
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H.%M.%S')
     file_path = f"./logs/{timestamp}_payroll_calculator_{year}_{month}_{start_day}-{end_day}.csv"
     with open(file_path, "a") as file:
-        file.writelines("sep=|")
-        file.writelines("Member Name|Net Tips|Kitchen Hours|Bartender Hours|Server Hours|Host Hours")
+        file.writelines("sep=|\n")
+        file.writelines("Member Name|Net Tips|Kitchen Hours|Bartender Hours|Server Hours|Host Hours\n")
         for worker in workers_net_tips:
             net_tips = "{:.2f}".format(workers_net_tips[worker] / 100)
             file.writelines(f"{member_id_to_name[worker]}|{net_tips}|"
                             f"{format_timedelta(hours_billed[worker]['Kitchen'])}|"
                             f"{format_timedelta(hours_billed[worker]['Bartender'])}|"
                             f"{format_timedelta(hours_billed[worker]['Server'])}|"
-                            f"{format_timedelta(hours_billed[worker]['Host'])}")
+                            f"{format_timedelta(hours_billed[worker]['Host'])}\n")
 
 
 def main():
