@@ -3,8 +3,8 @@
 # Date Range for Payroll Calculation
 year = "2021"
 month = "08"
-start_day = "01"
-end_day = "15"
+start_day = "16"
+end_day = "31"
 
 # roles = ["Server", "Kitchen", "Bartender", "Host"]
 

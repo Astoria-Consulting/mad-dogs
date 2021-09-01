@@ -187,7 +187,7 @@ def process_line_item(line_item, order_timestamp, category_id_to_name, workers_n
 
     to_each = tipout_total / len(to_workers)
     for to_worker in to_workers:
-        log(f"Giving {to_each/100} to {member_id_to_name[to_worker]}")
+        # log(f"Giving {to_each/100} to {member_id_to_name[to_worker]}")
         workers_net_tips[to_worker] += to_each
 
 
@@ -195,6 +195,10 @@ def process_payment(payment, processed_orders, workers_net_tips, category_id_to_
                     member_id_to_name):
     # Add the credit card tips to the worker who rang the order (cashier)
     cashier = payment["employee_id"]
+    # If the cashier is Tyler, skip this order
+    if cashier == 'TOne_p5pB8DMR6CvQXGs':
+        log("Tyler rang this order. Skipping it.")
+        return
 
     cc_tips = 0
     if "tip_money" in payment:
@@ -220,7 +224,7 @@ def process_payment(payment, processed_orders, workers_net_tips, category_id_to_
 
     order_datetime = parser.parse(order["created_at"])
     order_timestamp = order_datetime.astimezone(est).strftime('%Y-%m-%dT%H:%M:%SZ')
-    log(f"Order {order_id}. Cashier: {member_id_to_name[cashier]}. Tips: {cc_tips/100}. Time: {order_timestamp}")
+    log(f"Order: {order_id}. Cashier: {member_id_to_name[cashier]}. Tips: {cc_tips / 100}. Time: {order_timestamp}")
 
     if "line_items" not in order:
         return
@@ -295,9 +299,11 @@ def get_hours_billed(shifts):
 def format_timedelta(timedelta):
     days = timedelta.days
     hours, rem = divmod(timedelta.seconds, 3600)
-    minutes, seconds = divmod(rem, 60)
+    truncated_percent = "{:.2f}".format(rem / 3600)
+    formatted_percent = str(truncated_percent)[1:]
+
     hours += days * 24
-    return f"{hours}:{minutes}:{seconds}"
+    return f"{hours}{formatted_percent}"
 
 
 def main():
@@ -334,14 +340,18 @@ def main():
         executor.map(process_payment_threaded, all_payments)
 
     log("Processing for pay period complete. Results:")
-    print("Member Name|Net Tips|Kitchen Hours|Bartender Hours|Server Hours|Host Hours")
-    for worker in workers_net_tips:
-        net_tips = "{:.2f}".format(workers_net_tips[worker]/100)
-        print(f"{member_id_to_name[worker]}|{net_tips}|"
-              f"{format_timedelta(hours_billed[worker]['Kitchen'])}|"
-              f"{format_timedelta(hours_billed[worker]['Bartender'])}|"
-              f"{format_timedelta(hours_billed[worker]['Server'])}|"
-              f"{format_timedelta(hours_billed[worker]['Host'])}")
+    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H.%M.%S')
+    file_path = f"./logs/{timestamp}_payroll_calculator_{year}_{month}_{start_day}-{end_day}"
+    with open(file_path, "a") as file:
+        file.write("sep=|")
+        file.write("Member Name|Net Tips|Kitchen Hours|Bartender Hours|Server Hours|Host Hours")
+        for worker in workers_net_tips:
+            net_tips = "{:.2f}".format(workers_net_tips[worker] / 100)
+            file.write(f"{member_id_to_name[worker]}|{net_tips}|"
+                       f"{format_timedelta(hours_billed[worker]['Kitchen'])}|"
+                       f"{format_timedelta(hours_billed[worker]['Bartender'])}|"
+                       f"{format_timedelta(hours_billed[worker]['Server'])}|"
+                       f"{format_timedelta(hours_billed[worker]['Host'])}")
 
 
 if __name__ == '__main__':
