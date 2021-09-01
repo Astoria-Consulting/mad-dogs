@@ -8,7 +8,9 @@ import datetime
 import concurrent.futures
 
 from square.client import Client
+import pytz
 
+est = pytz.timezone('US/Eastern')
 year = payroll_config.year
 month = payroll_config.month
 start_day = payroll_config.start_day
@@ -130,20 +132,21 @@ def get_workers(current_timestamp, current_roles, shifts, member_id_to_created_a
             # Ensure Time Match
             if current_shift["start_at"] <= current_timestamp <= current_shift["end_at"]:
                 # Ensure that, if kitchen shift, team member started more than 31 days ago.
-                if current_shift["wage"]["title"] == "Kitchen":
-                    member_start_date = parser.parse(member_id_to_created_at[current_shift["team_member_id"]])
-                    current_timestamp = datetime.datetime.now()
-                    delta = datetime.timedelta(days=31)
-                    if current_timestamp < member_start_date + delta:
-                        # This kitchen worker started more recently than 31 days ago. Skip them
-                        continue
+                # if current_shift["wage"]["title"] == "Kitchen":
+                #     member_start_date = parser.parse(member_id_to_created_at[current_shift["team_member_id"]])
+                #     current_timestamp = datetime.datetime.now()
+                #     delta = datetime.timedelta(days=31)
+                #     if current_timestamp < member_start_date + delta:
+                #         # This kitchen worker started more recently than 31 days ago. Skip them
+                #         continue
 
                 worker_matches.append(current_shift["team_member_id"])
 
     return worker_matches
 
 
-def process_line_item(line_item, order_timestamp, category_id_to_name, workers_net_tips, shifts, member_id_to_created_at):
+def process_line_item(line_item, order_timestamp, category_id_to_name, workers_net_tips, shifts,
+                      member_id_to_created_at, cashier, member_id_to_name):
     dollar_amount = line_item["gross_sales_money"]["amount"]
 
     if "catalog_object_id" not in line_item:
@@ -164,13 +167,10 @@ def process_line_item(line_item, order_timestamp, category_id_to_name, workers_n
     )
     category_id = item.body["object"]["item_data"]["category_id"]
     category_name = category_id_to_name[category_id]
-    from_roles = tipouts_from_role[category_name]
     to_roles = tipouts_to_role[category_name]
 
-    # determine the 'from workers' for that category
-    from_workers = get_workers(order_timestamp, from_roles, shifts, member_id_to_created_at)
     to_workers = get_workers(order_timestamp, to_roles, shifts, member_id_to_created_at)
-    if len(from_workers) == 0 or len(to_workers) == 0:
+    if len(to_workers) == 0:
         return
 
     # calculate percentage for current item
@@ -183,23 +183,26 @@ def process_line_item(line_item, order_timestamp, category_id_to_name, workers_n
 
     tipout_total = dollar_amount * percentage
 
-    from_each = tipout_total / len(from_workers)
-    for from_worker in from_workers:
-        workers_net_tips[from_worker] -= from_each
+    workers_net_tips[cashier] -= tipout_total
 
     to_each = tipout_total / len(to_workers)
     for to_worker in to_workers:
+        log(f"Giving {to_each/100} to {member_id_to_name[to_worker]}")
         workers_net_tips[to_worker] += to_each
 
 
-def process_payment(payment, processed_orders, workers_net_tips, category_id_to_name, shifts, member_id_to_created_at):
-    # Add the credit card tips to the worker who rang the order
+def process_payment(payment, processed_orders, workers_net_tips, category_id_to_name, shifts, member_id_to_created_at,
+                    member_id_to_name):
+    # Add the credit card tips to the worker who rang the order (cashier)
+    cashier = payment["employee_id"]
+
+    cc_tips = 0
     if "tip_money" in payment:
         cc_tips = payment["tip_money"]["amount"]
-        if payment["employee_id"] in workers_net_tips:
-            workers_net_tips[payment["employee_id"]] += cc_tips
+        if cashier in workers_net_tips:
+            workers_net_tips[cashier] += cc_tips
         else:
-            workers_net_tips[payment["employee_id"]] = cc_tips
+            workers_net_tips[cashier] = cc_tips
 
     # get order
     order_result = client.orders.retrieve_order(
@@ -214,14 +217,17 @@ def process_payment(payment, processed_orders, workers_net_tips, category_id_to_
         return
     else:
         processed_orders[order_id] = None
-    log(f"Order {order_id}")
-    order_timestamp = order["created_at"]
+
+    order_datetime = parser.parse(order["created_at"])
+    order_timestamp = order_datetime.astimezone(est).strftime('%Y-%m-%dT%H:%M:%SZ')
+    log(f"Order {order_id}. Cashier: {member_id_to_name[cashier]}. Tips: {cc_tips/100}. Time: {order_timestamp}")
 
     if "line_items" not in order:
         return
     line_items = order['line_items']
     for line_item in line_items:
-        process_line_item(line_item, order_timestamp, category_id_to_name, workers_net_tips, shifts, member_id_to_created_at)
+        process_line_item(line_item, order_timestamp, category_id_to_name, workers_net_tips, shifts,
+                          member_id_to_created_at, cashier, member_id_to_name)
 
 
 def get_all_payments(begin_time, end_time):
@@ -322,7 +328,8 @@ def main():
                                                  workers_net_tips=workers_net_tips,
                                                  category_id_to_name=category_id_to_name,
                                                  shifts=shifts,
-                                                 member_id_to_created_at=member_id_to_created_at)
+                                                 member_id_to_created_at=member_id_to_created_at,
+                                                 member_id_to_name=member_id_to_name)
     with concurrent.futures.ThreadPoolExecutor(max_workers=None) as executor:
         executor.map(process_payment_threaded, all_payments)
 
